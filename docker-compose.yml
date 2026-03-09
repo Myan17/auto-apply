@@ -1,0 +1,16 @@
+services:
+  auto-apply:
+    build: .
+    # Mount your local secrets and resume — never bake these into the image
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./credentials.json:/app/credentials.json:ro
+      - ./config:/app/config:ro
+      - ./data:/app/data          # screenshots, DB, generated docs written here
+      - ${RESUME_PATH}:/app/resume.pdf:ro
+    environment:
+      - RESUME_PATH=/app/resume.pdf
+    # Run headful Chromium inside the container (requires display)
+    # For headless mode set headless: true in config/settings.yaml
+    network_mode: host
+    command: ["run", "--limit", "5"]

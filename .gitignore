@@ -1,10 +1,37 @@
+# Secrets — never commit these
 .env
 credentials.json
-data/
-*.pyc
+*.json
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
 .venv/
 venv/
-dist/
-*.egg-info/
+env/
+
+# Local data (resumes, screenshots, DB)
+data/
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Playwright
 .playwright/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Docker
+docker-compose.override.yml
