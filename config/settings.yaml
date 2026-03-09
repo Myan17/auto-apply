@@ -1,0 +1,96 @@
+# Auto-Apply Configuration
+
+# Google Sheet settings
+sheet:
+  # Name of the worksheet tab to read from
+  worksheet: "Sheet1"
+  # Column mapping (1-indexed)
+  columns:
+    url: 1
+    company: 2
+    role: 3
+    status: 4
+    date_applied: 5
+    method: 6
+    notes: 7
+
+# Application settings
+apply:
+  # Max applications per run
+  limit: 10
+  # Delay between applications (seconds) - randomized ±50%
+  delay: 45
+  # Portals to process (comment out to skip)
+  portals:
+    - greenhouse
+    - lever
+    - linkedin
+    - workday
+    - email
+    - generic
+
+# Browser automation settings
+browser:
+  # Run browser in headless mode (set false to watch it work)
+  headless: false
+  # Typing delay in ms (simulates human typing)
+  typing_delay: 80
+  # Viewport size
+  viewport_width: 1280
+  viewport_height: 800
+  # Path to save browser session (for LinkedIn login persistence)
+  session_path: ./data/browser_session
+
+# AI settings
+ai:
+  # Vision agent model (screenshots → actions)
+  model: "gpt-4o"
+  # Text tailoring model — gpt-4o-mini has 10M TPM vs 30k for gpt-4o
+  tailor_model: "gpt-4o-mini"
+  # Max tokens for resume tailoring
+  max_tokens_resume: 2000
+  # Max tokens for cover letter
+  max_tokens_cover_letter: 1500
+
+# Email settings
+email:
+  # Subject line template ({company} and {role} are replaced)
+  subject: "Application for {role} - {company}"
+  # Body template
+  body: |
+    Dear Hiring Team,
+
+    Please find attached my resume and cover letter for the {role} position at {company}.
+
+    I would welcome the opportunity to discuss how my background aligns with your team's needs.
+
+    Best regards,
+    {name}
+
+# Standard application Q&A — answers reused across all portals
+profile:
+  based_in_us: true
+  requires_sponsorship: true
+  open_to_relocation: true
+  willing_to_work_onsite: true
+  prepared_for_startup: true
+  additional_note: "I am excited about this opportunity and am fully committed to contributing to the team."
+  # EEO / self-identification
+  hispanic_or_latino: false
+  ethnicity: "Asian"
+  veteran_status: "I am not a protected veteran"
+  self_id_language: "English"
+  # General application questions
+  country_of_residence: "United States"
+  heard_about_us: "LinkedIn"
+  previously_employed_here: false
+  at_least_18: true
+  available_start_date: "Immediately"
+
+# Document generation
+documents:
+  # Output format for generated documents
+  format: pdf
+  # Naming template
+  resume_name: "{name}_Resume_{company}.pdf"
+  cover_letter_name: "{name}_CoverLetter_{company}.pdf"
