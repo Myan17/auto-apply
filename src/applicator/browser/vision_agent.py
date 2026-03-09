@@ -31,6 +31,7 @@ You will be shown a screenshot of the current browser page along with:
 - Resume path
 - What the goal is (apply for a specific job)
 - A log of actions already taken
+- INTERACTIVE PAGE ELEMENTS: a list of every real input/select/button/combobox on the page with their exact HTML attributes
 
 Your job is to decide the SINGLE NEXT ACTION to take.
 
@@ -46,16 +47,26 @@ Respond with ONLY a JSON object (no markdown, no explanation):
 }
 
 HOW TO USE selector AND selector_type (READ CAREFULLY):
-- selector_type "css"  → selector is a CSS selector, e.g. "[data-automation-id='email']" or "button.apply-btn"
-- selector_type "text" → selector is the EXACT VISIBLE TEXT of the element, e.g. "Apply Now" or "Upload your resume"
-- selector_type "label"→ selector is the label text next to the input, e.g. "Email address" or "First Name"
-- selector_type "role" → selector is "role:name", e.g. "button:Apply Now" or "link:Sign In"
+- selector_type "css"  → selector is a CSS selector built from the INTERACTIVE PAGE ELEMENTS list, e.g. "[name='email']" or "[id='country']"
+- selector_type "text" → selector is the EXACT VISIBLE TEXT of the element, e.g. "Apply Now"
+- selector_type "label"→ selector is the label text next to the input, e.g. "Email address"
+- selector_type "role" → selector is "role:name", e.g. "button:Apply Now"
+
+ALWAYS prefer building selectors from the INTERACTIVE PAGE ELEMENTS list — use the id, name, data-automation-id, or aria-label shown there.
+NEVER invent attribute values that are not in the element list.
 
 EXAMPLES:
-  Click "Apply Now" button:  {"action":"click","selector":"Apply Now","selector_type":"text","value":""}
-  Fill email field:          {"action":"fill","selector":"Email","selector_type":"label","value":"user@email.com"}
-  Click via CSS:             {"action":"click","selector":"button[data-automation-id='next']","selector_type":"css","value":""}
-  Upload resume:             {"action":"upload","selector":"input[type='file']","selector_type":"css","value":"/path/to/resume.pdf"}
+  Element list shows: [input] name="email" placeholder="Email"
+  → {"action":"fill","selector":"[name='email']","selector_type":"css","value":"user@email.com"}
+
+  Element list shows: [select] name="country" options=["","United States","Canada"]
+  → {"action":"select","selector":"[name='country']","selector_type":"css","value":"United States"}
+
+  Element list shows: [button] text="Apply Now"
+  → {"action":"click","selector":"Apply Now","selector_type":"text","value":""}
+
+  Upload resume when [input] type="file" is in element list:
+  → {"action":"upload","selector":"input[type='file']","selector_type":"css","value":"/path/to/resume.pdf"}
 
 Action meanings:
 - fill: type a value into a text input
@@ -70,15 +81,16 @@ Action meanings:
 Rules:
 - NEVER fill the "website" honeypot field (name="website", data-automation-id="beecatcher")
 - For Workday: prefer data-automation-id selectors, e.g. "[data-automation-id='email']"
-- If you see a CAPTCHA, use action "pause"
-- If you see an email verification screen, use action "pause"
+- If you see a CAPTCHA, use action "pause" (this is the ONLY reason to use pause)
+- Email verification screens: use action "wait" — the system will handle it
 - If you see a confirmation/thank you page, use action "done"
 - Only return ONE action at a time
 - Prefer "css" selector_type with specific attributes over "text" when possible
 - IMPORTANT: Before filling or selecting a field, check if it already has the correct value (resume autofill may have populated it). If a field already contains the right value, SKIP it and target the next empty or incorrect field instead. Do NOT re-fill or re-select fields that are already correct.
 - For dropdowns: if the displayed value already matches what you need to select, do not click it — move on.
-- CRITICAL: If an action shows "✗ FAILED" in the action log, that selector DID NOT WORK. Do NOT repeat the same selector. Switch selector_type (e.g. "css" → "label" or "text") or use a different selector string entirely. Repeating a failed selector will always fail again.
-- If you cannot find a working selector for a field after 2 different attempts, use action "pause" so a human can handle it instead of looping forever.
+- CRITICAL: If an action shows "✗ FAILED" in the action log, that selector DID NOT WORK. Do NOT repeat the same selector. Look at the INTERACTIVE PAGE ELEMENTS list and pick a different attribute (id, name, aria-label) for the same field.
+- If a field is not in the INTERACTIVE PAGE ELEMENTS list at all, use action "wait" to let the page load more, then it will appear.
+- Never give up on a field by using "pause" — always try the element list.
 """
 
 USER_PROMPT_TEMPLATE = """
@@ -111,6 +123,8 @@ Standard answers for application questions:
 
 Actions taken so far:
 {action_log}
+
+{page_elements}
 
 Current page screenshot is attached. What is the single next action?
 """
@@ -448,8 +462,9 @@ class VisionApplicator(BaseApplicator):
                 _random_delay(3.0)
 
                 for step in range(self.MAX_STEPS):
-                    # Take screenshot
+                    # Take screenshot + extract real DOM elements
                     screenshot_b64 = take_screenshot(page)
+                    page_elements = get_page_elements(page)
 
                     # Build context string
                     resume_path = docs.resume_path or cfg.env.resume_path
@@ -475,6 +490,7 @@ class VisionApplicator(BaseApplicator):
                         veteran_status=cfg.profile.veteran_status,
                         self_id_language=cfg.profile.self_id_language,
                         action_log="\n".join(action_log[-10:]) or "none yet",
+                        page_elements=page_elements,
                     )
 
                     # Ask GPT-4o Vision
@@ -522,18 +538,29 @@ class VisionApplicator(BaseApplicator):
                         consecutive_failures += 1
                         print(f"  [warn] Action failed ({consecutive_failures} in a row)")
 
-                        # Auto-pause after 3 consecutive failures — human can unblock
-                        if consecutive_failures >= 3:
-                            print(f"\n  [!] 3 consecutive failures. Please fix in browser, then press Enter.")
-                            input("  > ")
-                            action_log.append("  → human intervened to unblock")
+                        # After 5 consecutive failures, scroll the page to reveal hidden elements
+                        if consecutive_failures == 3:
+                            print("  [auto] Scrolling page to reveal more elements...")
+                            try:
+                                page.evaluate("window.scrollBy(0, 400)")
+                            except Exception:
+                                pass
+                            _random_delay(1.5)
+                        elif consecutive_failures >= 6:
+                            # Too many failures — scroll back to top and reset count
+                            print("  [auto] Resetting scroll position and retrying...")
+                            try:
+                                page.evaluate("window.scrollTo(0, 0)")
+                            except Exception:
+                                pass
                             consecutive_failures = 0
+                            _random_delay(2.0)
 
                     _random_delay(1.0)
 
                 else:
-                    print(f"\n  [!] Reached max steps ({self.MAX_STEPS}). Pausing for manual review.")
-                    input("  Press Enter when done > ")
+                    print(f"\n  [!] Reached max steps ({self.MAX_STEPS}).")
+                    screenshot_path = self._save_screenshot(page, job.company)
 
                 screenshot_path = screenshot_path or self._save_screenshot(page, job.company)
 
