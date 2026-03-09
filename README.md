@@ -36,9 +36,10 @@ Fully automated job application tool powered by **GPT-4o Vision**. Give it a Goo
 git clone https://github.com/Myan17/auto-apply.git
 cd auto-apply
 
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
+pip install --upgrade pip        # required — old pip can't handle pyproject.toml
 pip install -e .
 playwright install chromium
 ```
