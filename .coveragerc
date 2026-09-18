@@ -1,0 +1,13 @@
+# Coverage is measured on the logic layer. The browser applicators and the
+# GPT-4o Vision agent drive live third-party pages and are exercised by
+# running the tool, not by unit tests; the CLI is thin wiring over the rest.
+[run]
+source = src
+omit =
+    src/applicator/browser/*
+    src/cli.py
+    src/scraper/ashby.py
+    src/scraper/greenhouse.py
+    src/scraper/lever.py
+    src/scraper/workday.py
+    src/scraper/generic.py

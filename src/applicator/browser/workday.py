@@ -87,6 +87,27 @@ def detect_state(page) -> str:
     return STATE_UNKNOWN
 
 
+class WorkdayPasswordNotConfigured(RuntimeError):
+    """Raised when a Workday account step is reached with no password set."""
+
+
+def _require_workday_password(cfg) -> str:
+    """Return the user's configured Workday password, or refuse to proceed.
+
+    A Workday account holds the applicant's name, address, phone and resume on
+    the employer's tenant. Falling back to a default would give every account
+    this tool creates the same password, readable by anyone in this repo.
+    """
+    password = cfg.env.workday_password
+    if not password:
+        raise WorkdayPasswordNotConfigured(
+            "WORKDAY_PASSWORD is not set. Refusing to create or sign in to a "
+            "Workday account without a password you chose. Set WORKDAY_PASSWORD "
+            "in .env and re-run."
+        )
+    return password
+
+
 class WorkdayApplicator(BaseApplicator):
     def __init__(self, config: AppConfig):
         self.config = config
@@ -210,9 +231,11 @@ class WorkdayApplicator(BaseApplicator):
 
     def _handle_auth(self, page, cfg):
         """Fill Workday account creation or sign-in form using exact data-automation-id selectors."""
+        # Resolve the password before touching the form, so a missing value
+        # fails the job without having typed the applicant's email anywhere.
+        password = _require_workday_password(cfg)
         _random_delay(1.0)
         text = page.inner_text("body").lower()
-        password = cfg.env.workday_password or "AutoApply@2026!"
 
         # Check which sub-form is visible: Create Account vs Sign In
         is_create = page.locator("[data-automation-id='createAccountSubmitButton']").count() > 0

@@ -1,5 +1,7 @@
 # auto-apply
 
+[![CI](https://github.com/Myan17/auto-apply/actions/workflows/ci.yml/badge.svg)](https://github.com/Myan17/auto-apply/actions/workflows/ci.yml)
+
 Fully automated job application tool powered by **GPT-4o Vision**. Give it a Google Sheet with job URLs, your resume, and your info — it opens a browser, reads every page like a human, and fills out the application form autonomously.
 
 **Supports:** Workday, Greenhouse, Lever, Ashby, and any generic portal.
@@ -18,6 +20,45 @@ Fully automated job application tool powered by **GPT-4o Vision**. Give it a Goo
 8. Writes the result back to your Google Sheet
 
 ---
+
+## Testing
+
+```bash
+pip install -e ".[dev]" pytest-cov
+pytest tests -q --cov
+```
+
+52 tests, **82% coverage of the logic layer**, gated at 75% in CI. No test
+calls OpenAI, Google Sheets or a real job portal.
+
+| Suite | Covers |
+|---|---|
+| `test_db.py` | the duplicate-application guard — only an `applied` row blocks a job; failed attempts stay retryable |
+| `test_detector.py` | portal routing on real URL shapes, and lookalike hosts (`clever.co`, `notworkday.com`) that must *not* match |
+| `test_workday_auth.py` | Workday account password must come from config; missing value fails closed before the form is touched |
+| `test_ai.py` | model fallback on rate limit, final rate limit surfaces, input truncation, anti-fabrication prompt present |
+| `test_sheets_reader.py` | row numbering (drives write-back), ragged rows, status parsing, skip-applied |
+| `test_documents.py` | real PDF round trip, XML escaping of `<`/`&`, empty-text rejection |
+
+**What coverage deliberately excludes** (see `.coveragerc`): the per-portal
+browser applicators and the GPT-4o Vision agent. They drive live third-party
+pages whose DOM changes without notice; mocking them would test the mocks. They
+are exercised by running the tool. Overall coverage including them is 28%.
+
+## Security notes
+
+- **Credentials:** the OpenAI key and Google service-account JSON are read from
+  `.env` and a gitignored `credentials.json`. CI runs gitleaks over full history.
+- **Workday passwords (fixed 2026-09-17):** earlier versions fell back to a
+  hardcoded password, committed to this public repo, whenever
+  `WORKDAY_PASSWORD` was unset. Every Workday account created that way shared a
+  publicly readable password. The fallback is removed and Workday steps now
+  refuse to run without a configured password. **If you ran a Workday
+  application without setting `WORKDAY_PASSWORD`, change the password on those
+  employer Workday accounts.**
+- **Portal routing (fixed 2026-09-17):** detection matched substrings of the
+  whole URL, so `clever.co/...` routed to the Lever applicator and
+  `notworkday.com` to Workday. It now matches the parsed hostname.
 
 ## Prerequisites
 
