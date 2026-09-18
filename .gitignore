@@ -35,3 +35,8 @@ data/
 
 # Docker
 docker-compose.override.yml
+
+# Coverage data
+.coverage
+coverage.xml
+htmlcov/
